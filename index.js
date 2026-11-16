@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, delay, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, delay, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 
@@ -17,11 +17,11 @@ async function startBot() {
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         auth: state,
-        browser: ["Ubuntu", "Chrome", "20.0.04"]
+        browser: Browsers.macOS("Desktop")
     });
 
     if (!sock.authState.creds.registered) {
-        await delay(3000);
+        await delay(5000);
         const code = await sock.requestPairingCode(nomorBot);
         console.log('\n=========================================');
         console.log(`KODE PAIRING WA KAMU: ${code}`);
@@ -54,3 +54,4 @@ async function startBot() {
 }
 
 startBot();
+    
