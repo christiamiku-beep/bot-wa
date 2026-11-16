@@ -1,12 +1,18 @@
-const { default: makeWASocket, useMultiFileAuthState, delay, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
+const QRCode = require('qrcode');
 
 const app = express();
-app.get('/', (req, res) => res.send('Bot WhatsApp Aktif 24 Jam'));
-app.listen(process.env.PORT || 3000, () => console.log('Web server siap'));
+let qrTerbaru = '';
 
-const nomorBot = "6281927585005";
+app.get('/', async (req, res) => {
+    if (!qrTerbaru) return res.send('<h3>Bot aktif atau sedang menyiapkan QR Code... Refresh halaman ini dalam 5 detik.</h3>');
+    const gambarQR = await QRCode.toDataURL(qrTerbaru);
+    res.send(`<h2>Scan QR WhatsApp Ini:</h2><img src="${gambarQR}" style="width:300px;"/>`);
+});
+
+app.listen(process.env.PORT || 3000, () => console.log('Web server siap'));
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sesi_bot');
@@ -15,20 +21,22 @@ async function startBot() {
     const sock = makeWASocket({
         version,
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
         auth: state,
         browser: Browsers.macOS("Desktop")
     });
 
-    if (!sock.authState.creds.registered) {
-        await delay(5000);
-        const code = await sock.requestPairingCode(nomorBot);
-        console.log('\n=========================================');
-        console.log(`KODE PAIRING WA KAMU: ${code}`);
-        console.log('=========================================\n');
-    }
-
     sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, qr } = update;
+        if (qr) qrTerbaru = qr;
+        if (connection === 'close') {
+            startBot();
+        } else if (connection === 'open') {
+            qrTerbaru = '';
+            console.log('Bot WhatsApp berhasil terhubung!');
+        }
+    });
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
@@ -38,20 +46,8 @@ async function startBot() {
 
         if (teks.toLowerCase() === 'ping') {
             await sock.sendMessage(pengirim, { text: 'Pong! Bot aktif 24 jam.' });
-        } else if (teks.toLowerCase() === 'menu') {
-            await sock.sendMessage(pengirim, { text: 'Halo! Bot WhatsApp 24 jam siap digunakan.\nKetik *ping* untuk cek status.' });
-        }
-    });
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection } = update;
-        if (connection === 'close') {
-            startBot();
-        } else if (connection === 'open') {
-            console.log('Bot WhatsApp berhasil terhubung!');
         }
     });
 }
 
 startBot();
-    
